@@ -19,6 +19,8 @@ export default function InquiryDrawer({
   useEffect(() => {
     if (!open) return;
 
+    const previousOverflow = document.body.style.overflow;
+
     const handleKey = (event) => {
       if (event.key === "Escape") onClose();
     };
@@ -27,18 +29,50 @@ export default function InquiryDrawer({
     window.addEventListener("keydown", handleKey);
 
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKey);
     };
   }, [open, onClose]);
 
+  // GET PRODUCT NAME
+  const getProductName = (product) => {
+    return isArabic
+      ? product.arabicTitle ||
+          product.nameAr ||
+          product.titleAr ||
+          product.name ||
+          product.title ||
+          "منتج أثاث"
+      : product.name ||
+          product.title ||
+          product.titleEn ||
+          "Furniture item";
+  };
+
+  // GET PRODUCT CATEGORY
+  const getProductCategory = (product) => {
+    return isArabic
+      ? product.arabicCategory ||
+          product.categoryAr ||
+          product.category ||
+          ""
+      : product.category ||
+          product.categoryEn ||
+          "";
+  };
+
+  // SEND WHATSAPP INQUIRY
   const sendInquiry = () => {
+    if (!inquiries.length) return;
+
     const productDetails = inquiries
       .map((product, index) => {
-        const name = product.name || product.title || "Furniture item";
-        const category = product.category || "";
+        const name = getProductName(product);
+        const category = getProductCategory(product);
 
-        return `${index + 1}. ${name}${category ? ` (${category})` : ""}`;
+        return `${index + 1}. ${name}${
+          category ? ` (${category})` : ""
+        }`;
       })
       .join("\n");
 
@@ -57,6 +91,7 @@ export default function InquiryDrawer({
     <AnimatePresence>
       {open && (
         <>
+          {/* BACKDROP */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.82 }}
@@ -65,16 +100,21 @@ export default function InquiryDrawer({
             className="fixed inset-0 z-[200] bg-black"
           />
 
+          {/* INQUIRY DRAWER */}
           <motion.aside
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "tween", duration: 0.35 }}
             dir={isArabic ? "rtl" : "ltr"}
+            role="dialog"
+            aria-modal="true"
+            aria-label={
+              isArabic ? "قائمة الاستفسارات" : "Inquiry List"
+            }
             className="fixed right-0 top-0 z-[201] flex h-dvh w-full flex-col bg-[#F8F6F0] px-6 pt-10 sm:w-[65%] lg:w-[35%]"
-            aria-label={isArabic ? "قائمة الاستفسارات" : "Inquiry List"}
           >
-            {/* Header */}
+            {/* HEADER */}
             <div className="flex items-center justify-between border-b border-[#DCDAD3] pb-5">
               <h2 className="flex items-center gap-3 font-serif text-[22px] text-[#1C2C3D]">
                 <ShoppingBag size={32} color="#DAB52F" />
@@ -87,25 +127,34 @@ export default function InquiryDrawer({
               </h2>
 
               <button
+                type="button"
                 onClick={onClose}
-                aria-label={isArabic ? "إغلاق القائمة" : "Close inquiry list"}
+                aria-label={
+                  isArabic ? "إغلاق القائمة" : "Close inquiry list"
+                }
                 className="rounded-xl border-[3px] border-[#DAB52F]/70 p-1 text-[#525B63] hover:bg-[#DAB52F]/20"
               >
                 <X size={22} />
               </button>
             </div>
 
-            {/* Products */}
+            {/* EMPTY STATE */}
             {inquiries.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3">
-                <ShoppingBag size={42} className="text-[#DAB52F]" />
+                <ShoppingBag
+                  size={42}
+                  className="text-[#DAB52F]"
+                />
 
                 <p className="text-[14px] text-[#66717E]">
-                  {isArabic ? "لا توجد استفسارات حتى الآن" : "No inquiries yet"}
+                  {isArabic
+                    ? "لا توجد استفسارات حتى الآن"
+                    : "No inquiries yet"}
                 </p>
               </div>
             ) : (
               <>
+                {/* SELECTED PRODUCTS */}
                 <div className="flex-1 space-y-4 overflow-y-auto py-6">
                   {inquiries.map((product, index) => {
                     const image =
@@ -114,12 +163,12 @@ export default function InquiryDrawer({
                       product.img ||
                       product.src;
 
-                    const name =
-                      product.name || product.title || "Furniture item";
+                    const name = getProductName(product);
+                    const category = getProductCategory(product);
 
                     return (
                       <div
-                        key={`${name}-${index}`}
+                        key={`${product.id || name}-${index}`}
                         className="flex gap-4 border-b border-[#DCDAD3] pb-4"
                       >
                         {image ? (
@@ -142,9 +191,9 @@ export default function InquiryDrawer({
                             {name}
                           </h3>
 
-                          {product.category && (
+                          {category && (
                             <p className="mt-1 text-[12px] text-[#66717E]">
-                              {product.category}
+                              {category}
                             </p>
                           )}
 
@@ -154,6 +203,7 @@ export default function InquiryDrawer({
                             className="mt-3 flex w-fit items-center gap-1 text-[12px] text-red-600 transition-colors hover:text-red-800"
                           >
                             <Trash2 size={14} />
+
                             {isArabic ? "إزالة" : "Remove"}
                           </button>
                         </div>
@@ -162,7 +212,7 @@ export default function InquiryDrawer({
                   })}
                 </div>
 
-                {/* WhatsApp Inquiry */}
+                {/* WHATSAPP BUTTON */}
                 <div className="border-t border-[#DCDAD3] py-5">
                   <button
                     type="button"

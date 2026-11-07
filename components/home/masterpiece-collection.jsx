@@ -1,91 +1,125 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Plus, X } from "lucide-react";
 import { useLanguage } from "@/context/language-context";
+import { getProducts, getImageUrl } from "@/lib/api";
 
-const products = [
-  {
-    title: "The Royal Majlis",
-    arabicTitle: "المجلس الملكي",
-    category: "LUXURY COLLECTION",
-    arabicCategory: "مجموعة فاخرة",
-    badge: "FEATURED",
-    arabicBadge: "مميز",
-    image: "/images/categories/majlis.webp",
-  },
-  {
-    title: "Signature Sofa",
-    arabicTitle: "الأريكة المميزة",
-    category: "CUSTOM MADE",
-    arabicCategory: "تصميم حسب الطلب",
-    badge: "NEW",
-    arabicBadge: "جديد",
-    image: "/images/categories/premium-sofa-set.webp",
-  },
-  {
-    title: "The Imperial Chair",
-    arabicTitle: "الكرسي الإمبراطوري",
-    category: "PREMIUM FURNITURE",
-    arabicCategory: "أثاث فاخر",
-    badge: "FEATURED",
-    arabicBadge: "مميز",
-    image: "/images/categories/chairs-recliners.webp",
-  },
-  {
-    title: "Modern Living Set",
-    arabicTitle: "طقم المعيشة العصري",
-    category: "LIVING COLLECTION",
-    arabicCategory: "مجموعة غرف المعيشة",
-    badge: "NEW",
-    arabicBadge: "جديد",
-    image: "/images/categories/king-size-sofa.webp",
-  },
-  {
-    title: "Royal Comfort",
-    arabicTitle: "الراحة الملكية",
-    category: "LUXURY COLLECTION",
-    arabicCategory: "مجموعة فاخرة",
-    badge: "FEATURED",
-    arabicBadge: "مميز",
-    image: "/images/categories/curtains.webp",
-  },
-  {
-    title: "The Classic Lounge",
-    arabicTitle: "الاستراحة الكلاسيكية",
-    category: "CUSTOM MADE",
-    arabicCategory: "تصميم حسب الطلب",
-    badge: "NEW",
-    arabicBadge: "جديد",
-    image: "/images/categories/curtain-rods.webp",
-  },
-  {
-    title: "Elegant Living",
-    arabicTitle: "أناقة المعيشة",
-    category: "PREMIUM FURNITURE",
-    arabicCategory: "أثاث فاخر",
-    badge: "FEATURED",
-    arabicBadge: "مميز",
-    image: "/images/categories/premium-bed.webp",
-  },
-  {
-    title: "The Signature Collection",
-    arabicTitle: "المجموعة المميزة",
-    category: "LIVING COLLECTION",
-    arabicCategory: "مجموعة غرف المعيشة",
-    badge: "NEW",
-    arabicBadge: "جديد",
-    image: "/images/categories/premium-sofa-set.webp",
-  },
-];
+const fallbackImage = "/images/categories/premium-sofa-set.webp";
+
+function getArrayResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.products)) return data.products;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+function mapProduct(item) {
+  const imageId = Array.isArray(item.imageIds)
+    ? item.imageIds[0]
+    : null;
+
+  return {
+    id: item._id,
+    title: item.titleEn || "Premium Furniture",
+    arabicTitle: item.titleAr || item.titleEn || "أثاث فاخر",
+
+    category: item.category || "PREMIUM FURNITURE",
+    arabicCategory: item.categoryAr || "أثاث فاخر",
+
+    badge: item.isFeatured
+      ? "FEATURED"
+      : item.isNewArrival
+        ? "NEW"
+        : "",
+
+    arabicBadge: item.isFeatured
+      ? "مميز"
+      : item.isNewArrival
+        ? "جديد"
+        : "",
+
+    description: item.descriptionEn || "",
+    arabicDescription: item.descriptionAr || "",
+
+    price: item.price ?? null,
+
+    image: imageId
+      ? getImageUrl(imageId)
+      : fallbackImage,
+
+    isFeatured: Boolean(item.isFeatured),
+    isNewArrival: Boolean(item.isNewArrival),
+  };
+}
 
 export default function MasterpieceCollection() {
   const { isArabic } = useLanguage();
 
+  const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // FETCH FEATURED AND NEW ARRIVAL PRODUCTS
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProducts() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await getProducts();
+
+        if (cancelled) return;
+
+        const productList = getArrayResponse(response);
+
+        const mappedProducts = productList.map(mapProduct);
+
+        // Featured products first, then new arrivals
+        const highlightedProducts = mappedProducts
+          .filter(
+            (product) =>
+              product.isFeatured || product.isNewArrival
+          )
+          .sort((a, b) => {
+            if (a.isFeatured && !b.isFeatured) return -1;
+            if (!a.isFeatured && b.isFeatured) return 1;
+            return 0;
+          });
+
+        // Use first products as fallback if no flags are assigned
+        const displayProducts =
+          highlightedProducts.length > 0
+            ? highlightedProducts
+            : mappedProducts;
+
+        setProducts(displayProducts.slice(0, 8));
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Masterpiece collection error:", err);
+          setError(
+            err.message || "Unable to load collection."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ADD PRODUCT TO HEADER INQUIRY BAG
   const addToInquiry = (product) => {
@@ -139,72 +173,114 @@ export default function MasterpieceCollection() {
 
         {/* PRODUCT GRID */}
 
-        <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-[18px] sm:gap-y-[30px] lg:grid-cols-4">
-          {products.map((product, index) => (
-            <article className="min-w-0" key={index}>
-              <div className="group relative isolate h-[220px] overflow-hidden rounded-[8px] bg-[#e7dfd5] sm:h-[280px] lg:h-[310px]">
-                <Image
-                  src={product.image}
-                  alt={isArabic ? product.arabicTitle : product.title}
-                  fill
-                  sizes="(max-width: 600px) 50vw, (max-width: 1024px) 50vw, 25vw"
-                  className="object-cover transition-transform duration-1000 ease-out group-hover:scale-[1.06]"
-                />
-
-                {/* BADGE */}
-
-                <span className="absolute left-2.5 top-2.5 z-[2] rounded-[5px] bg-[#d9b84c] px-2 py-1.5 text-[8px] font-bold tracking-[0.7px] text-[#211e18] sm:left-[14px] sm:top-[14px] sm:px-[11px] sm:py-[7px] sm:text-[9px] sm:tracking-[1px]">
-                  {isArabic ? product.arabicBadge : product.badge}
-                </span>
-
-                {/* PLUS BUTTON - ADD TO INQUIRY BAG */}
-
-                <button
-                  type="button"
-                  className="absolute right-2.5 top-2.5 z-[3] grid h-[30px] w-[30px] place-items-center rounded-full border border-white/70 bg-black/25 text-white transition-all duration-300 hover:border-[#d9b84c] hover:bg-[#d9b84c] hover:text-[#211e18] sm:right-[13px] sm:top-[13px] sm:h-[34px] sm:w-[34px]"
-                  aria-label={
-                    isArabic
-                      ? `أضف ${product.arabicTitle} إلى قائمة الاستفسارات`
-                      : `Add ${product.title} to inquiry list`
-                  }
-                  onClick={() => addToInquiry(product)}
-                >
-                  <Plus size={18} />
-                </button>
-
-                {/* IMAGE OVERLAY */}
-
-                <div className="absolute inset-0 z-[1] bg-gradient-to-b from-transparent to-black/50 opacity-100 transition-opacity duration-400 sm:opacity-0 sm:group-hover:opacity-100" />
-
-                {/* READ MORE */}
-
-                <button
-                  type="button"
-                  className="absolute bottom-3 left-3 z-[2] inline-flex translate-y-0 items-center gap-2 text-[8px] font-bold tracking-[0.7px] text-white opacity-100 transition-all duration-300 sm:bottom-[17px] sm:left-[17px] sm:translate-y-2 sm:text-[10px] sm:tracking-[1px] sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
-                  onClick={() => setSelectedProduct(product)}
-                >
-                  {isArabic ? "اقرأ المزيد" : "READ MORE"}
-                  <ArrowRight
-                    size={14}
-                    className={isArabic ? "rotate-180" : ""}
+        {loading ? (
+          <div className="py-16 text-center text-sm text-[#77716a]">
+            {isArabic ? "جاري تحميل المنتجات..." : "Loading collection..."}
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center">
+            <p className="text-sm text-red-600">
+              {isArabic
+                ? "تعذر تحميل المنتجات"
+                : "Unable to load collection"}
+            </p>
+            <p className="mt-2 text-xs text-[#77716a]">
+              {error}
+            </p>
+          </div>
+        ) : products.length > 0 ? (
+          <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:gap-x-[18px] sm:gap-y-[30px] lg:grid-cols-4">
+            {products.map((product, index) => (
+              <article
+                className="min-w-0"
+                key={product.id || index}
+              >
+                <div className="group relative isolate h-[220px] overflow-hidden rounded-[8px] bg-[#e7dfd5] sm:h-[280px] lg:h-[310px]">
+                  <Image
+                    src={product.image}
+                    alt={
+                      isArabic
+                        ? product.arabicTitle
+                        : product.title
+                    }
+                    fill
+                    unoptimized
+                    sizes="(max-width: 600px) 50vw, (max-width: 1024px) 50vw, 25vw"
+                    className="object-cover transition-transform duration-1000 ease-out group-hover:scale-[1.06]"
                   />
-                </button>
-              </div>
 
-              {/* PRODUCT INFO */}
+                  {/* BADGE */}
 
-              <div className="px-[2px] pt-3 sm:pt-[15px]">
-                <span className="mb-[7px] block text-[7px] font-bold tracking-[0.8px] text-[#a88b3d] sm:text-[9px] sm:tracking-[1.5px]">
-                  {isArabic ? product.arabicCategory : product.category}
-                </span>
+                  {product.badge && (
+                    <span className="absolute left-2.5 top-2.5 z-[2] rounded-[5px] bg-[#d9b84c] px-2 py-1.5 text-[8px] font-bold tracking-[0.7px] text-[#211e18] sm:left-[14px] sm:top-[14px] sm:px-[11px] sm:py-[7px] sm:text-[9px] sm:tracking-[1px]">
+                      {isArabic
+                        ? product.arabicBadge
+                        : product.badge}
+                    </span>
+                  )}
 
-                <h3 className="font-serif text-[14px] font-normal leading-tight text-[#29241e] sm:text-[19px]">
-                  {isArabic ? product.arabicTitle : product.title}
-                </h3>
-              </div>
-            </article>
-          ))}
-        </div>
+                  {/* PLUS BUTTON - ADD TO INQUIRY BAG */}
+
+                  <button
+                    type="button"
+                    className="absolute right-2.5 top-2.5 z-[3] grid h-[30px] w-[30px] place-items-center rounded-full border border-white/70 bg-black/25 text-white transition-all duration-300 hover:border-[#d9b84c] hover:bg-[#d9b84c] hover:text-[#211e18] sm:right-[13px] sm:top-[13px] sm:h-[34px] sm:w-[34px]"
+                    aria-label={
+                      isArabic
+                        ? `أضف ${product.arabicTitle} إلى قائمة الاستفسارات`
+                        : `Add ${product.title} to inquiry list`
+                    }
+                    onClick={() => addToInquiry(product)}
+                  >
+                    <Plus size={18} />
+                  </button>
+
+                  {/* IMAGE OVERLAY */}
+
+                  <div className="absolute inset-0 z-[1] bg-gradient-to-b from-transparent to-black/50 opacity-100 transition-opacity duration-400 sm:opacity-0 sm:group-hover:opacity-100" />
+
+                  {/* READ MORE */}
+
+                  <button
+                    type="button"
+                    className="absolute bottom-3 left-3 z-[2] inline-flex translate-y-0 items-center gap-2 text-[8px] font-bold tracking-[0.7px] text-white opacity-100 transition-all duration-300 sm:bottom-[17px] sm:left-[17px] sm:translate-y-2 sm:text-[10px] sm:tracking-[1px] sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
+                    onClick={() => setSelectedProduct(product)}
+                  >
+                    {isArabic ? "اقرأ المزيد" : "READ MORE"}
+
+                    <ArrowRight
+                      size={14}
+                      className={isArabic ? "rotate-180" : ""}
+                    />
+                  </button>
+                </div>
+
+                {/* PRODUCT INFO */}
+
+                <div className="px-[2px] pt-3 sm:pt-[15px]">
+                  <span className="mb-[7px] block text-[7px] font-bold tracking-[0.8px] text-[#a88b3d] sm:text-[9px] sm:tracking-[1.5px]">
+                    {isArabic
+                      ? product.arabicCategory
+                      : product.category}
+                  </span>
+
+                  <h3 className="font-serif text-[14px] font-normal leading-tight text-[#29241e] sm:text-[19px]">
+                    {isArabic
+                      ? product.arabicTitle
+                      : product.title}
+                  </h3>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="py-16 text-center">
+            <p className="font-serif text-xl text-[#29241e]">
+              {isArabic
+                ? "لا توجد منتجات حالياً"
+                : "No products available"}
+            </p>
+          </div>
+        )}
 
         {/* BOTTOM INQUIRY */}
 
@@ -220,6 +296,7 @@ export default function MasterpieceCollection() {
             className="inline-flex min-h-[46px] items-center justify-center gap-3 rounded-[7px] bg-[#d9b84c] px-6 text-[10px] font-bold tracking-[1px] text-[#211e18] transition-all duration-300 hover:gap-[17px] hover:bg-[#c5a43c] sm:min-h-12 sm:px-[23px]"
           >
             {isArabic ? "استفسر الآن" : "INQUIRE NOW"}
+
             <ArrowRight
               size={16}
               className={isArabic ? "rotate-180" : ""}
@@ -262,6 +339,7 @@ export default function MasterpieceCollection() {
                     : selectedProduct.title
                 }
                 fill
+                unoptimized
                 sizes="(max-width: 700px) 90vw, 450px"
                 className="object-cover"
               />
@@ -284,8 +362,10 @@ export default function MasterpieceCollection() {
 
               <p className="my-4 text-[12px] leading-[1.8] text-[#77716a] sm:my-[16px] sm:mb-[25px] sm:text-[13px]">
                 {isArabic
-                  ? "صُممت هذه القطعة باستخدام مواد فاخرة واهتمام بأدق التفاصيل، لتضفي الأناقة الخالدة والراحة على مساحة معيشتك."
-                  : "Crafted with premium materials and attention to detail, bringing timeless elegance and comfort to your living space."}
+                  ? selectedProduct.arabicDescription ||
+                    "صُممت هذه القطعة بعناية لتضفي الأناقة والراحة على منزلك."
+                  : selectedProduct.description ||
+                    "Discover premium craftsmanship and timeless comfort for your home."}
               </p>
 
               <Link
@@ -293,6 +373,7 @@ export default function MasterpieceCollection() {
                 className="inline-flex min-h-[46px] items-center justify-center gap-3 rounded-[7px] bg-[#d9b84c] px-5 text-[10px] font-bold tracking-[1px] text-[#211e18] transition-all duration-300 hover:gap-[17px] hover:bg-[#c5a43c]"
               >
                 {isArabic ? "استفسر الآن" : "INQUIRE NOW"}
+
                 <ArrowRight
                   size={16}
                   className={isArabic ? "rotate-180" : ""}

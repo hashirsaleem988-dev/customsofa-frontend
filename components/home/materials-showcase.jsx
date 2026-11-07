@@ -1,40 +1,92 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Eye } from "lucide-react";
 import { useLanguage } from "@/context/language-context";
+import { getMaterials, getImageUrl } from "@/lib/api";
 
-const materials = [
+const defaultMaterials = [
   {
     title: "Sofa Fabrics & Leather",
     arabicTitle: "أقمشة الأرائك والجلود",
     image: "/images/materials/sofa-leather.webp",
     tab: "sofa",
+    group: "sofa",
   },
   {
     title: "Curtain Fabrics & Drapery",
     arabicTitle: "أقمشة الستائر والمفروشات",
     image: "/images/materials/curtain-fabrics.webp",
     tab: "curtain",
+    group: "curtain",
   },
   {
     title: "Solid Timber Woods",
     arabicTitle: "الأخشاب الطبيعية الصلبة",
     image: "/images/materials/solid-timber-wood.webp",
-    tab: "timber",
+    tab: "wood",
+    group: "wood",
   },
   {
     title: "High-Density Foams",
     arabicTitle: "الإسفنج عالي الكثافة",
     image: "/images/materials/high-density-foam.webp",
     tab: "foam",
+    group: "foam",
   },
 ];
 
+function getArrayResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.materials)) return data.materials;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
 export default function MaterialsShowcase() {
   const { isArabic } = useLanguage();
+  const [materials, setMaterials] = useState(defaultMaterials);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMaterials() {
+      try {
+        const response = await getMaterials();
+        const apiMaterials = getArrayResponse(response);
+
+        if (!isMounted || apiMaterials.length === 0) return;
+
+        const updatedMaterials = defaultMaterials.map((defaultItem) => {
+          const firstMaterial = apiMaterials.find(
+            (item) => item.group === defaultItem.group && item.imageId
+          );
+
+          if (!firstMaterial) return defaultItem;
+
+          return {
+            ...defaultItem,
+            image: getImageUrl(firstMaterial.imageId),
+          };
+        });
+
+        if (isMounted) {
+          setMaterials(updatedMaterials);
+        }
+      } catch (error) {
+        console.error("Materials showcase API error:", error);
+      }
+    }
+
+    loadMaterials();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <section
@@ -42,9 +94,6 @@ export default function MaterialsShowcase() {
       className="w-full bg-[#f7eee5] px-4 py-[38px] sm:px-[5%] sm:py-12 sm:pb-[55px]"
     >
       <div className="mx-auto w-full max-w-[1500px]">
-
-        {/* HEADING */}
-
         <div className="mb-[23px] text-center sm:mb-[27px]">
           <h2 className="font-serif text-[23px] font-bold leading-[1.2] tracking-[0.3px] text-[#29232b] sm:text-[clamp(25px,3vw,31px)]">
             {isArabic ? "مواد خام معتمدة" : "CERTIFIED RAW MATERIALS"}
@@ -57,8 +106,6 @@ export default function MaterialsShowcase() {
           </p>
         </div>
 
-        {/* MATERIAL CARDS */}
-
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
           {materials.map((item) => (
             <Link
@@ -70,15 +117,12 @@ export default function MaterialsShowcase() {
                 src={item.image}
                 alt={isArabic ? item.arabicTitle : item.title}
                 fill
+                unoptimized={item.image.startsWith("http")}
                 sizes="(max-width: 600px) 50vw, (max-width: 1000px) 50vw, 25vw"
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
               />
 
-              {/* DARK OVERLAY */}
-
               <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/[0.02] via-black/[0.12] to-black/[0.82] transition-all duration-400 group-hover:from-black/[0.04] group-hover:via-black/[0.28] group-hover:to-black/[0.88]" />
-
-              {/* CARD CONTENT */}
 
               <div className="absolute bottom-3 left-[10px] right-[10px] z-[2] flex items-center justify-between gap-2 text-white sm:bottom-[17px] sm:left-[17px] sm:right-[17px]">
                 <h3 className="max-w-[85%] font-serif text-[12px] font-bold leading-[1.35] transition-colors duration-300 group-hover:text-[#e2c45d] sm:text-[15px]">
@@ -95,8 +139,6 @@ export default function MaterialsShowcase() {
             </Link>
           ))}
         </div>
-
-        {/* EXPLORE BUTTON */}
 
         <div className="mt-[25px] flex justify-center sm:mt-[34px]">
           <Link

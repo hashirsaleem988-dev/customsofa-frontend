@@ -7,7 +7,7 @@ import MaterialsHero from "@/components/materials/materials-hero";
 import MaterialsCatalog from "@/components/materials/materials-catalog";
 import { useLanguage } from "@/context/language-context";
 
-export default function MaterialsPage({ searchParams }) {
+export default function MaterialsPage() {
   const { isArabic } = useLanguage();
 
   return (
